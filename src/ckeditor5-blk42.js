@@ -26,11 +26,45 @@ import {
 	Fullscreen
 } from 'ckeditor5';
 import 'ckeditor5/ckeditor5.css';
-import Blk42 from "@edsdk/blk42-ckeditor5";
+import N1ED from "@edsdk/n1ed-ckeditor5";
+
+// The whole N1ED plugin, set up for Blk42: the blocks come on with a Blk42 key, and whatever else your
+// key gets later in the Dashboard (the file manager and the image editor come with N1ED) comes on in this
+// same build, buttons included. Until our cloud says what the key runs, the editor starts as a Blk42 one.
+const DEMO_API_KEY = 'BL42B5RRdemodemodemodemo';
+const EXPECTED_PLUGINS = [ 'Blk42' ];
+
+// The three buttons of Flmngr: upload, browse the files, edit the image (hidden while your key has no file manager)
+const FLMNGR_ITEMS = [ '|', 'upload', 'flmngr', 'imgpen' ];
+// and on the main toolbar its stock photos (Photos42)
+const STOCK_ITEMS = [ 'photos42' ];
+// In the image toolbar they come with no separator, so a key without the file manager leaves no gap
+const FLMNGR_IMAGE_ITEMS = [ 'upload', 'flmngr', 'imgpen' ];
 
 export default class CKEditor5WithBlk42 extends ClassicEditor {
 
-	static create(selector, config) {
+	static create(selector, config = {}) {
+
+		// One API key, whichever name it is set under; the demo key without one
+		const keyOf = name => !!config[name] && config[name].apiKey;
+		const apiKey = config.apiKey || keyOf('N1ED') || keyOf('Blk42') || keyOf('Flmngr') || keyOf('flmngr') || keyOf('Image42') ||
+			DEMO_API_KEY;
+
+		// N1ED is one plugin here, its parts are not plugins of their own to remove: removePlugins: ['Flmngr']
+		// switches the file manager off (and takes its buttons off the toolbars), ['Blk42'] the blocks,
+		// and both (or 'N1ED') leave the editor without N1ED at all
+		const removePlugins = config.removePlugins || [];
+		const noN1ED = removePlugins.indexOf('N1ED') !== -1;
+		const noFlmngr = noN1ED || removePlugins.indexOf('Flmngr') !== -1;
+		const noBlk42 = noN1ED || removePlugins.indexOf('Blk42') !== -1;
+		const withN1ED = !(noFlmngr && noBlk42);
+		const flmngrItems = noFlmngr ? [] : FLMNGR_ITEMS;
+		const stockItems = noFlmngr ? [] : STOCK_ITEMS;
+		const n1ed = Object.assign({ expectedPlugins: EXPECTED_PLUGINS }, config.N1ED || {});
+		if (withN1ED && (noFlmngr || noBlk42))
+			n1ed.plugins = Object.assign({}, n1ed.plugins || {}, noFlmngr ? { Flmngr: false } : {}, noBlk42 ? { Blk42: false } : {});
+		const ours = ['N1ED', 'N1EDCore', 'Blk42', 'Flmngr'];
+
 		return ClassicEditor.create( selector, {
 			licenseKey: 'GPL',
 			htmlSupport: {
@@ -67,7 +101,7 @@ export default class CKEditor5WithBlk42 extends ClassicEditor {
 				Table,
 				TableToolbar,
 				TextTransformation,
-				Blk42,
+				...( withN1ED ? [ N1ED ] : [] ),
 				Fullscreen
 			],
 			toolbar: {
@@ -89,6 +123,8 @@ export default class CKEditor5WithBlk42 extends ClassicEditor {
 					'mediaEmbed',
 					'undo',
 					'redo',
+					...flmngrItems,
+					...stockItems,
 					'|',
 					'fullscreen'
 				]
@@ -100,7 +136,8 @@ export default class CKEditor5WithBlk42 extends ClassicEditor {
 					'imageStyle:side',
 					'|',
 					'toggleImageCaption',
-					'imageTextAlternative'
+					'imageTextAlternative',
+					...( noFlmngr ? [] : FLMNGR_IMAGE_ITEMS )
 				]
 			},
 			table: {
@@ -112,7 +149,10 @@ export default class CKEditor5WithBlk42 extends ClassicEditor {
 			},
 			// This value must be kept in sync with the language defined in webpack.config.js.
 			language: 'en',
-			...config
+			...config,
+			removePlugins: removePlugins.filter( name => ours.indexOf( name ) === -1 ),
+			N1ED: n1ed,
+			apiKey: apiKey
 		} )
 	}
 
